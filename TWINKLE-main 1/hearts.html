@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Liked Posts</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Arial', sans-serif;
+    }
+    body {
+      background-color: #f8f9fa;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    .top-bar {
+      background: white;
+      padding: 15px;
+      display: flex;
+      align-items: center;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .top-bar h1 {
+      font-size: 20px;
+      margin-left: 10px;
+    }
+    .post {
+      background-color: white;
+      border-radius: 10px;
+      padding: 15px;
+      margin: 10px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .post-header {
+      display: flex;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .post-user-img {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      margin-right: 10px;
+      object-fit: cover;
+    }
+    .post-user-name {
+      font-weight: bold;
+    }
+    .post-time {
+      font-size: 12px;
+      color: #666;
+      margin-left: 5px;
+    }
+    .post-content {
+      margin-bottom: 10px;
+    }
+    .post-image {
+      max-width: 100%;
+      border-radius: 8px;
+      margin-top: 10px;
+    }
+    .post-actions {
+      display: flex;
+      justify-content: space-around;
+      color: #666;
+      padding-top: 10px;
+      border-top: 1px solid #eee;
+    }
+    .post-action {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      cursor: pointer;
+    }
+    .post-action img {
+      width: 20px;
+      height: 20px;
+    }
+    .bottom-nav {
+      display: flex;
+      position: fixed;
+      justify-content: space-around;
+      bottom: 0;
+      width: 100%;
+      background-color: white;
+      border-top: 1px solid #ddd;
+      padding: 10px 0;
+    }
+    .bottom-nav a {
+      color: black;
+      text-decoration: none;
+      text-align: center;
+    }
+    .bottom-nav a img {
+      width: 30px;
+      height: 30px;
+    }
+    .no-posts {
+      text-align: center;
+      padding: 20px;
+      color: #666;
+    }
+    .liked {
+      color: #ed4956;
+    }
+  </style>
+</head>
+<body>
+  <div class="top-bar">
+    <img src="light-heart.jpg" width="30" height="30" />
+    <h1>Liked Posts</h1>
+  </div>
+
+  <div id="posts-container"></div>
+
+  <div class="bottom-nav">
+    <a href="homepage.html"><img src="home.png" /></a>
+    <a href="friend.html"><img src="light-search.jpg" /></a>
+    <a href="post.html"><img src="light-add.jpg" /></a>
+    <a href="likes.html"><img src="light-heart.jpg" /></a>
+    <a href="messages.html"><img src="chat.png" alt="Messages"></a>
+    <a href="profile.html"><img src="light-profile.jpg" /></a>
+  </div>
+
+  <script>
+    const SUPABASE_URL = "https://umsgszmaubthunqwbnjn.supabase.co";
+    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVtc2dzem1hdWJ0aHVucXdibmpuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDg3NTgzNTQsImV4cCI6MjA2NDMzNDM1NH0.nD44sDzSrbfkMQ8P4maXq3g4ironGihaU2p0aBomT5I";
+    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    
+    let currentUserId = null;
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      // Check if user is logged in
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        window.location.href = 'login.html';
+        return;
+      }
+      currentUserId = user.id;
+      
+      await loadLikedPosts();
+      
+      // Set up real-time updates
+      const channel = supabase.channel('likes_changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'likes' }, () => {
+          loadLikedPosts();
+        })
+        .subscribe();
+    });
+
+    async function loadLikedPosts() {
+      const postsContainer = document.getElementById('posts-container');
+      postsContainer.innerHTML = '<p>Loading...</p>';
+
+      try {
+        // Get all posts that the user has liked
+        const { data: likes, error: likesError } = await supabase
+          .from('likes')
+          .select('post_id')
+          .eq('user_id', currentUserId);
+
+        if (likesError) throw likesError;
+
+        if (!likes || likes.length === 0) {
+          postsContainer.innerHTML = '<p class="no-posts">No liked posts yet.</p>';
+          return;
+        }
+
+        // Get the actual posts data
+        const postIds = likes.map(like => like.post_id);
+        const { data: posts, error: postsError } = await supabase
+          .from('posts')
+          .select(`
+            *,
+            users(username, profile_image),
+            comments:comments(count),
+            likes:likes(count),
+            user_liked:likes(filter: {user_id: {eq: $currentUserId}})
+          `)
+          .in('id', postIds)
+          .order('created_at', { ascending: false });
+
+        if (postsError) throw postsError;
+
+        if (!posts || posts.length === 0) {
+          postsContainer.innerHTML = '<p class="no-posts">No liked posts found.</p>';
+          return;
+        }
+
+        // Display posts
+        postsContainer.innerHTML = '';
+        posts.forEach(post => {
+          const postElement = createPostElement(post);
+          postsContainer.appendChild(postElement);
+        });
+      } catch (error) {
+        console.error('Error loading liked posts:', error);
+        postsContainer.innerHTML = '<p class="no-posts">Failed to load liked posts. Please try again.</p>';
+      }
+    }
+
+    function createPostElement(post) {
+      const postElement = document.createElement('div');
+      postElement.className = 'post';
+      
+      const postDate = new Date(post.created_at).toLocaleString();
+      const isLiked = post.user_liked.length > 0;
+      const likeCount = post.likes[0]?.count || 0;
+      const commentCount = post.comments[0]?.count || 0;
+      
+      postElement.innerHTML = `
+        <div class="post-header">
+          <img src="${post.users.profile_image || 'default-profile.jpg'}" class="post-user-img" alt="User">
+          <div>
+            <span class="post-user-name">${post.users?.username || 'Unknown User'}</span>
+            <span class="post-time">${postDate}</span>
+          </div>
+        </div>
+        <div class="post-content">${post.content || ''}</div>
+        ${post.post_image ? `<img src="${post.post_image}" class="post-image">` : ''}
+        <div class="post-actions">
+          <div class="post-action ${isLiked ? 'liked' : ''}" onclick="toggleLike('${post.id}', ${isLiked})">
+            <img src="${isLiked ? 'red-heart.png' : 'light-heart.jpg'}" alt="Like">
+            <span>${likeCount}</span>
+          </div>
+          <div class="post-action" onclick="window.location.href='comment.html?postId=${post.id}'">
+            <img src="chat.png" alt="Comments">
+            <span>${commentCount}</span>
+          </div>
+        </div>
+      `;
+      
+      return postElement;
+    }
+
+    async function toggleLike(postId, isLiked) {
+      if (!currentUserId) return;
+
+      if (isLiked) {
+        // Unlike the post
+        const { error } = await supabase
+          .from('likes')
+          .delete()
+          .eq('post_id', postId)
+          .eq('user_id', currentUserId);
+          
+        if (error) console.error('Error unliking post:', error);
+      } else {
+        // Like the post
+        const { error } = await supabase
+          .from('likes')
+          .insert([{ 
+            post_id: postId, 
+            user_id: currentUserId 
+          }]);
+          
+        if (error) console.error('Error liking post:', error);
+      }
+      
+      // Refresh the posts
+      loadLikedPosts();
+    }
+
+    // Make functions available globally
+    window.toggleLike = toggleLike;
+  </script>
+</body>
+</html>

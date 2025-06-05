@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Messenger with Voice & Camera Messages</title>
+  <style>
+    * { box-sizing: border-box; }
+    html,body{
+      margin:0;
+      height:100%;
+      font-family:"Segoe UI",sans-serif;
+      background:#f0f2f5;
+    }
+    .container{
+      display:flex;
+      height:100%;
+      max-width:1200px;
+      margin:auto;
+      background:#fff;
+      box-shadow:0 0 8px rgba(0,0,0,.08);
+    }
+    .sidebar{
+      width:320px;
+      display:flex;
+      flex-direction:column;
+      border-right:1px solid #ddd;
+    }
+    .sidebar-header{
+      padding:16px;
+      font-size:1.25rem;
+      font-weight:700;
+      border-bottom:1px solid #ddd;
+    }
+    .search-bar{
+      padding:12px 16px;
+      border-bottom:1px solid #ddd;
+    }
+    .search-bar input{
+      width:100%;
+      padding:8px 14px;
+      border-radius:18px;
+      border:1px solid #ccc;
+    }
+    .user-list{
+      flex:1;overflow-y:auto;
+    }
+    .user-item{
+      display:flex;
+      align-items:center;
+      padding:12px 16px;
+      cursor:pointer;
+      border-bottom:1px solid #f1f1f1;
+      transition:background .15s;
+    }
+    .user-item:hover{
+      background:#f5f6f7
+    }
+    .user-item.active{
+      background:#e4e6eb
+    }
+    .avatar{
+      width:40px;
+      height:40px;
+      border-radius:50%;
+      background:#5485ff;
+      color:#fff;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-weight:600;
+      margin-right:12px;
+    }
+    .uname{
+      font-weight:600;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+    .chat{
+      flex:1;
+      display:flex;
+      flex-direction:column;
+    }
+    .chat-header{
+      padding:16px 20px;
+      font-weight:700;
+      font-size:1.1rem;
+      border-bottom:1px solid #ddd;background:#f5f6f7;
+    }
+    .messages{
+      flex:1;
+      padding:16px;
+      overflow-y:auto;
+      background:#FFFFFF;
+      display:flex;
+      flex-direction:column;
+    }
+    .bubble{
+      max-width:70%;
+      padding:12px 16px;
+      border-radius:20px;
+      margin-bottom:12px;
+      position:relative;
+      line-height:1.35;
+      word-wrap:break-word;
+      font-size:1rem;
+    }
+    .sent{
+      align-self:flex-end;
+      background-color: lightblue;
+      color: black;
+      border-bottom-right-radius:4px;
+    }
+    .received{
+      align-self:flex-start;
+      color:#050505;
+      border-bottom-left-radius: 2px;
+      background-color: lightgray;
+      padding: 12px 13px;
+    }
+    .time {
+      color: #000;
+      font-size: 9px;
+      position: absolute;
+      bottom: 0px;
+      right: 8px;
+    }
+    .send-box {
+      display: flex;
+      gap: 8px;
+      padding: 12px 20px;
+      border-top:1px solid #ddd;
+      background:#f5f6f7;
+      align-items:center;
+    }
+    .send-box textarea{
+      flex:1;padding:12px 16px;
+      border-radius:20px;
+      border:1px solid #ccc;
+      resize:none;
+      font-size:1rem;
+      height:48px;
+    }
+    .send-btn{
+      border:none;
+      background:#0084ff;
+      color:#fff;
+      font-weight:700;
+      border-radius:20px;
+      padding:0 24px;
+      height:48px;
+      cursor:pointer;
+    }
+    .send-btn:disabled{
+      background:#a0c3ff;
+      cursor:not-allowed;
+    }
+    .image-btn, .voice-btn {
+      padding:8px 12px;
+      border-radius:12px;
+      background:#ccc;
+      border:none;
+      cursor:pointer;
+    }
+    .bubble img { 
+      max-width:60vw; 
+      max-height:300px; 
+      width:auto; 
+      height:180px; 
+      border-radius:12px; 
+      margin-top:6px; 
+    }
+    .bubble audio { 
+      width:100%; 
+      margin-top:6px; 
+    }
+    #cameraPreview {
+      display:none;
+      position: fixed;
+      bottom: 80px;
+      right: 20px;
+      width: 200px;
+      height: 150px;
+      border: 2px solid #0084ff;
+      border-radius: 12px;
+      background: #000;
+      z-index: 1000;
+      object-fit: cover;
+    }
+    .recording-indicator {
+      display: none;
+      position: fixed;
+      bottom: 80px;
+      left: 20px;
+      background: rgba(255, 0, 0, 0.7);
+      color: white;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 14px;
+      z-index: 1000;
+    }
+
+    @media(max-width:768px){
+      .container{flex-direction:column}
+      .sidebar{width:100%;height:210px}
+      .chat{height:calc(100vh-210px)}
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <aside class="sidebar">
+      <div class="sidebar-header">Chats</div>
+      <div class="search-bar"><input id="searchInput" placeholder="Search username..." /></div>
+      <div id="userList" class="user-list"></div>
+    </aside>
+
+    <section class="chat">
+      <div id="chatHeader" class="chat-header">Select a user</div>
+      <div id="messages" class="messages"><p style="margin:auto;color:#555">No conversation selected</p></div>
+      <div class="send-box">
+        <textarea id="messageInput" placeholder="Type a message.." disabled></textarea>
+        <input type="file" id="imageInput" style="display:none" accept="image/*" />
+        <button class="image-btn" id="attachBtn" title="Send Image">🖼️</button>
+        <button class="image-btn" id="cameraBtn" title="Send Camera Photo">📷</button>
+        <button class="voice-btn" id="recordBtn" title="Send Voice">🎤</button>
+        <button id="sendBtn" class="send-btn" disabled>Send</button>
+      </div>
+    </section>
+  </div>
+
+  <!-- Camera preview and canvas -->
+  <video id="cameraPreview" autoplay playsinline></video>
+  <canvas id="cameraCanvas" style="display:none;"></canvas>
+  <div class="recording-indicator" id="recordingIndicator">Recording...</div>
+
+  <script type="module">
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+
+    const SUPABASE_URL = "https://umsgszmaubthunqwbnjn.supabase.co";
+    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVtc2dzem1hdWJ0aHVucXdibmpuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDg3NTgzNTQsImV4cCI6MjA2NDMzNDM1NH0.nD44sDzSrbfkMQ8P4maXq3g4ironGihaU2p0aBomT5I";
+    const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    const userListEl = document.getElementById("userList");
+    const chatHeaderEl = document.getElementById("chatHeader");
+    const messagesEl = document.getElementById("messages");
+    const messageInputEl = document.getElementById("messageInput");
+    const sendBtnEl = document.getElementById("sendBtn");
+    const searchInputEl = document.getElementById("searchInput");
+    const imageInputEl = document.getElementById("imageInput");
+    const attachBtnEl = document.getElementById("attachBtn");
+    const recordBtnEl = document.getElementById("recordBtn");
+    const cameraBtnEl = document.getElementById("cameraBtn");
+    const cameraPreviewEl = document.getElementById("cameraPreview");
+    const cameraCanvasEl = document.getElementById("cameraCanvas");
+    const recordingIndicatorEl = document.getElementById("recordingIndicator");
+
+    let currentUser = null;
+    let users = [];
+    let selectedUserId = null;
+
+    const fmt = ts => new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    const scrollBottom = () => { messagesEl.scrollTop = messagesEl.scrollHeight; };
+
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return alert("Please sign in first");
+      currentUser = session.user;
+      await loadUsers();
+      realtimeMessages();
+    })();
+
+    async function loadUsers() {
+      const { data, error } = await supabase.from("users").select("id, username").neq("id", currentUser.id).order("username");
+      if (error) return userListEl.innerHTML = `<p style="padding:16px">${error.message}</p>`;
+      users = data;
+      renderUserList();
+    }
+
+    function renderUserList(filter = "") {
+      const list = users.filter(u => u.username.toLowerCase().includes(filter.toLowerCase()));
+      userListEl.innerHTML = list.length ? "" : "<p style='padding:16px'>No users</p>";
+      list.forEach(u => {
+        const item = document.createElement("div");
+        item.className = "user-item" + (u.id === selectedUserId ? " active" : "");
+        item.onclick = () => { selectedUserId = u.id; renderUserList(filter); openChat(); };
+        item.innerHTML = `<div class="avatar">${u.username[0].toUpperCase()}</div><div class="uname">${u.username}</div>`;
+        userListEl.appendChild(item);
+      });
+    }
+
+    searchInputEl.oninput = () => renderUserList(searchInputEl.value);
+
+    async function fetchMessagesWith(userId) {
+      const { data, error } = await supabase.from("messages")
+        .select("id, sender_id, receiver_id, content, created_at")
+        .order("created_at", { ascending: true })
+        .or(`and(sender_id.eq.${currentUser.id},receiver_id.eq.${userId}),and(sender_id.eq.${userId},receiver_id.eq.${currentUser.id})`);
+      return error ? [] : data;
+    }
+
+    async function openChat() {
+      const user = users.find(u => u.id === selectedUserId);
+      if (!user) return;
+      chatHeaderEl.textContent = user.username;
+      messageInputEl.disabled = false;
+      sendBtnEl.disabled = false;
+      messagesEl.innerHTML = "<p style='margin:auto;color:#777'>Loading…</p>";
+      const msgs = await fetchMessagesWith(selectedUserId);
+      renderMessages(msgs);
+    }
+
+    function renderMessages(msgs) {
+      messagesEl.innerHTML = "";
+      if (!msgs.length) {
+        messagesEl.innerHTML = "<p style='margin:auto;color:#777'>No messages yet.</p>";
+        return;
+      }
+      msgs.forEach(m => {
+        const isSent = m.sender_id === currentUser.id;
+        const bubble = document.createElement("div");
+        bubble.className = "bubble " + (isSent ? "sent" : "received");
+        
+        // Handle different message types
+        if (m.content.startsWith("data:image")) {
+          bubble.innerHTML = `<img src="${m.content}" alt="Sent image" />`;
+        } else if (m.content.startsWith("data:audio")) {
+          bubble.innerHTML = `
+            <audio controls>
+              <source src="${m.content}" type="audio/wav">
+              Your browser does not support the audio element.
+            </audio>
+          `;
+        } else {
+          bubble.textContent = m.content;
+        }
+        
+        const time = document.createElement("div");
+        time.className = "time";
+        time.textContent = fmt(m.created_at);
+        bubble.appendChild(time);
+        messagesEl.appendChild(bubble);
+      });
+      scrollBottom();
+    }
+
+    async function sendMessage(content) {
+      if (!content || !selectedUserId) return;
+      const { error } = await supabase.from("messages").insert({
+        sender_id: currentUser.id,
+        receiver_id: selectedUserId,
+        content: content,
+        created_at: new Date().toISOString()
+      });
+      if (error) return alert(error.message);
+      messageInputEl.value = "";
+      sendBtnEl.disabled = true;
+      const msgs = await fetchMessagesWith(selectedUserId);
+      renderMessages(msgs);
+    }
+
+    messageInputEl.oninput = () => sendBtnEl.disabled = !messageInputEl.value.trim();
+    messageInputEl.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage(messageInputEl.value.trim());
+      }
+    });
+
+    sendBtnEl.onclick = () => sendMessage(messageInputEl.value.trim());
+
+    // Image upload
+    attachBtnEl.onclick = () => imageInputEl.click();
+
+    imageInputEl.onchange = async () => {
+      const file = imageInputEl.files[0];
+      if (!file) return;
+      if (!file.type.startsWith("image/")) return alert("Please select an image file.");
+      const reader = new FileReader();
+      reader.onload = e => sendMessage(e.target.result);
+      reader.readAsDataURL(file);
+      imageInputEl.value = "";
+    };
+
+    // 🎤 Voice recording
+    let recorder, audioChunks = [], isRecording = false;
+
+    recordBtnEl.onclick = async () => {
+      if (isRecording) {
+        // Stop recording
+        recorder.stop();
+        recordBtnEl.textContent = "🎤";
+        recordingIndicatorEl.style.display = "none";
+        isRecording = false;
+      } else {
+        try {
+          // Start recording
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          audioChunks = [];
+          recorder = new MediaRecorder(stream);
+          
+          recorder.ondataavailable = e => {
+            audioChunks.push(e.data);
+          };
+
+          recorder.onstop = async () => {
+            const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+            
+            // Convert to data URL for storage
+            const reader = new FileReader();
+            reader.onload = () => {
+              sendMessage(reader.result);
+            };
+            reader.readAsDataURL(audioBlob);
+            
+            // Stop all tracks
+            stream.getTracks().forEach(track => track.stop());
+          };
+
+          recorder.start();
+          recordBtnEl.textContent = "⏹️";
+          recordingIndicatorEl.style.display = "block";
+          isRecording = true;
+          
+          // Auto-stop after 60 seconds
+          setTimeout(() => {
+            if (isRecording) {
+              recorder.stop();
+              recordBtnEl.textContent = "🎤";
+              recordingIndicatorEl.style.display = "none";
+              isRecording = false;
+            }
+          }, 60000);
+        } catch (err) {
+          alert("Microphone access denied or not supported: " + err.message);
+        }
+      }
+    };
+
+    // 📷 Camera
+    let cameraStream = null;
+    let cameraActive = false;
+
+    cameraBtnEl.onclick = async () => {
+      if (cameraActive) {
+        takePhoto();
+        stopCamera();
+      } else {
+        try {
+          cameraStream = await navigator.mediaDevices.getUserMedia({ video: true });
+          cameraPreviewEl.srcObject = cameraStream;
+          cameraPreviewEl.style.display = "block";
+          cameraBtnEl.textContent = "📸";
+          cameraActive = true;
+        } catch (err) {
+          alert("Could not access camera.");
+        }
+      }
+    };
+
+    function takePhoto() {
+      if (!cameraStream) return;
+      const videoTrack = cameraStream.getVideoTracks()[0];
+      const { width = 640, height = 480 } = videoTrack.getSettings();
+
+      cameraCanvasEl.width = width;
+      cameraCanvasEl.height = height;
+
+      const ctx = cameraCanvasEl.getContext("2d");
+      ctx.drawImage(cameraPreviewEl, 0, 0, width, height);
+
+      const dataUrl = cameraCanvasEl.toDataURL("image/png");
+      sendMessage(dataUrl);
+    }
+
+    function stopCamera() {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+        cameraStream = null;
+      }
+      cameraPreviewEl.style.display = "none";
+      cameraBtnEl.textContent = "📷";
+      cameraActive = false;
+    }
+
+    // 🔁 Realtime updates
+    function realtimeMessages() {
+      supabase.channel('public:messages')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, payload => {
+          if (!selectedUserId) return;
+          const m = payload.new;
+          const isRelevant = (
+            (m.sender_id === currentUser.id && m.receiver_id === selectedUserId) ||
+            (m.receiver_id === currentUser.id && m.sender_id === selectedUserId)
+          );
+          if (isRelevant) openChat();
+        })
+        .subscribe();
+    }
+  </script>
+</body>
+</html>

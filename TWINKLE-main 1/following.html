@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Homepage Following</title>
+<style>
+  * {
+    margin: 0; padding: 0; box-sizing: border-box;
+    font-family: Arial, sans-serif;
+  }
+  body {
+    background-color: #f8f9fa;
+  }
+  /* Top bar */
+  .top-bar {
+    display: flex;
+    justify-content: center; 
+    align-items: center;     
+    padding: 10px 20px;
+    background-color: white;
+    border-bottom: 1px solid #ddd;
+  }
+  .top-bar img {
+    width: 50px; 
+  }
+  /* Navigation links */
+  .nav-links {
+    display: flex;
+    justify-content: center;
+    background-color: white;
+    border-bottom: 1px solid #ddd;
+  }
+  .nav-links a {
+    text-decoration: none;
+    color: black;
+    padding: 10px 20px;
+    flex: 1;
+    text-align: center;
+    font-weight: bold;
+  }
+  .nav-links a.active {
+    border-bottom: 2px solid black;
+  }
+  /* Post styles */
+  .post {
+    margin: 10px 15px;
+    background-color: white;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  }
+  .post-header {
+    display: flex;
+    flex-direction: column;
+    padding: 15px;
+  }
+  .user-info {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+  .user-img {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    margin-right: 10px;
+  }
+  .username {
+    font-weight: bold;
+  }
+  .time {
+    font-size: 12px;
+    color: gray;
+    margin-left: auto;
+  }
+  .post-content {
+    padding: 15px 0 0 0;
+  }
+  .post-content img {
+    width: 100%;
+    border-radius: 10px;
+    margin-top: 10px;
+    max-width: 300px;
+    object-fit: cover;
+  }
+  .post-footer {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px 15px;
+    border-top: 1px solid #ddd;
+  }
+  .post-footer .action {
+    display: flex;
+    align-items: center;
+    color: gray;
+  }
+  .post-footer .action img {
+    margin-right: 5px;
+  }
+  /* Bottom navigation */
+  .bottom-nav {
+    display: flex;
+    position: fixed;
+    justify-content: space-around;
+    bottom: 0;
+    width: 100%;
+    background-color: white;
+    border-top: 1px solid #ddd;
+    padding: 10px 0;
+  }
+  .bottom-nav a {
+    color: black;
+    text-decoration: none;
+    text-align: center;
+  }
+  .bottom-nav a img {
+    width: 30px;
+    height: 30px;
+  }
+  /* Message for no posts */
+  #post-container.empty {
+    text-align: center;
+    padding: 20px;
+    color: gray;
+    font-style: italic;
+  }
+</style>
+</head>
+<body>
+
+<!-- Top bar -->
+<div class="top-bar">
+  <img src="twinkle.png" alt="Twinkle" />
+</div>
+
+<!-- Navigation links -->
+<div class="nav-links">
+  <a href="homepage.html">For you</a>
+  <a href="following.html" class="active">Following</a>
+</div>
+
+<!-- Posts container -->
+<div id="post-container" class="empty">Loading posts...</div>
+
+<!-- Bottom navigation -->
+<div class="bottom-nav">
+  <a href="#"><img src="home.png" alt="Home" /></a>
+  <a href="friend.html"><img src="light-search.jpg" alt="Search" /></a>
+  <a href="post.html"><img src="light-add.jpg" alt="Add" /></a>
+  <a href="#"><img src="light-heart.jpg" alt="Likes" /></a>
+  <a href="messages.html"><img src="chat.png" width="50" height="50" alt="Messages"></a>
+  <a href="profile.html"><img src="light-profile.jpg" alt="Profile" /></a>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  const SUPABASE_URL = "https://umsgszmaubthunqwbnjn.supabase.co";
+  const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVtc2dzem1hdWJ0aHVucXdibmpuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDg3NTgzNTQsImV4cCI6MjA2NDMzNDM1NH0.nD44sDzSrbfkMQ8P4maXq3g4ironGihaU2p0aBomT5I";
+  const { createClient } = supabase;
+  const supabaseClient = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+
+  // Replace this with how you store/get your logged in user ID
+  const userId = localStorage.getItem('user_id');
+
+  async function loadFollowingPosts() {
+    const container = document.getElementById('post-container');
+
+    if (!userId) {
+      container.textContent = "You must be logged in to see posts.";
+      return;
+    }
+
+    // Step 1: Fetch followed user IDs
+    let { data: following, error: followingError } = await supabase
+      .from('followers')
+      .select('followed_user_id')
+      .eq('user_id', userId);
+
+    if (followingError) {
+      container.textContent = "Error loading following list.";
+      console.error(followingError);
+      return;
+    }
+
+    if (!following || following.length === 0) {
+      container.textContent = "You're not following anyone yet.";
+      return;
+    }
+
+    const followedIds = following.map(f => f.followed_user_id);
+
+    // Step 2: Fetch posts from followed users with user info
+    let { data: posts, error: postsError } = await supabase
+      .from('posts')
+      .select(`
+        *,
+        users:users!posts_user_id_fkey (
+          username,
+          profile_pic
+        )
+      `)
+      .in('user_id', followedIds)
+      .order('created_at', { ascending: false });
+
+    if (postsError) {
+      container.textContent = "Error loading posts.";
+      console.error(postsError);
+      return;
+    }
+
+    if (!posts || posts.length === 0) {
+      container.textContent = "No posts to show.";
+      return;
+    }
+
+    // Clear container and render posts
+    container.classList.remove('empty');
+    container.innerHTML = '';
+
+    posts.forEach(post => {
+      const user = post.users && post.users[0] ? post.users[0] : {};
+      const userImage = user.profile_pic && user.profile_pic.trim() !== ''
+        ? `uploads/profile_pics/${user.profile_pic}`
+        : 'default-profile.jpg';
+
+      const postHtml = document.createElement('div');
+      postHtml.className = 'post';
+      postHtml.innerHTML = `
+        <div class="post-header">
+          <div class="user-info">
+            <img src="${userImage}" alt="User Image" class="user-img" />
+            <span class="username">${escapeHtml(user.username || 'Unknown')}</span>
+            <span class="time">${new Date(post.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+          </div>
+          <div class="post-content">
+            <p>${escapeHtml(post.content || '')}</p>
+            ${post.post_image ? `<img src="${escapeHtml(post.post_image)}" alt="Post Image" />` : ''}
+          </div>
+        </div>
+        <div class="post-footer">
+          <div class="action">
+            <img src="react.jpg" width="20" height="20" alt="Likes" /> ${post.likes_count || 0}
+          </div>
+          <div class="action">
+            <img src="comment.png" width="20" height="20" alt="Comments" /> ${post.comments_count || 0}
+          </div>
+          <div class="action">
+            <img src="share.png" width="20" height="20" alt="Shares" /> ${post.shares_count || 0}
+          </div>
+        </div>
+      `;
+      container.appendChild(postHtml);
+    });
+  }
+
+  // Simple HTML escaping to prevent XSS
+  function escapeHtml(text) {
+    return text
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  // Load posts on page ready
+  document.addEventListener('DOMContentLoaded', loadFollowingPosts);
+</script>
+
+</body>
+</html>

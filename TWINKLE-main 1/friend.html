@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Users Follow</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+  <style>
+    body { font-family: Arial; background: #f4f4f4; }
+    .container { max-width: 600px; margin: 20px auto; background: #fff; padding: 20px; border-radius: 10px; }
+    .user-list { list-style: none; padding: 0; }
+    .user-list li { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #ddd; padding: 10px 0; }
+    .profile-image { width: 50px; height: 50px; border-radius: 50%; object-fit: cover; margin-right: 10px; }
+    .user-details { flex: 1; }
+    .username { font-weight: bold; }
+    .followers { font-size: 0.9em; color: #666; }
+    .follow-button { padding: 5px 10px; border: none; border-radius: 5px; cursor: pointer; background: #007bff; color: #fff; }
+    .follow-button.unfollow { background: #dc3545; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h1>Users</h1>
+  <ul class="user-list" id="user-list"></ul>
+</div>
+
+<script>
+  const supabaseUrl = 'https://oeenwfsjmclnaamlqrjr.supabase.co';
+  const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9lZW53ZnNqbWNsbmFhbWxxcmpyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDg2NzkxMDcsImV4cCI6MjA2NDI1NTEwN30.re59hHf_ZJFh-JBVQVXAalxqKybEuCXJO_rFxrGWvwo'; 
+  const supabase = supabase.createClient(supabaseUrl, supabaseKey);
+
+
+  let currentUser;
+
+  async function getSessionAndLoadUsers() {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      alert('Please log in');
+      return;
+    }
+    currentUser = session.user;
+    loadUsers();
+  }
+
+  async function loadUsers() {
+    const { data: users, error } = await supabase
+      .from('users')
+      .select(`
+        id,
+        username,
+        profile_pic,
+        followers_count,
+        followers:followers!followers_followed_user_id_fkey(user_id)
+      `)
+      .neq('id', currentUser.id)
+      .order('followers_count', { ascending: false });
+
+    if (error) {
+      console.error(error);
+      return;
+    }
+
+    const list = document.getElementById('user-list');
+    list.innerHTML = '';
+
+    users.forEach(user => {
+      const isFollowing = user.followers?.some(f => f.user_id === currentUser.id);
+      const li = document.createElement('li');
+
+      li.innerHTML = `
+        <img src="${user.profile_pic ? 'uploads/profile_pics/' + user.profile_pic : 'default-profile.jpg'}" class="profile-image" alt="Profile">
+        <div class="user-details">
+          <div class="username">${user.username}</div>
+          <div class="followers" data-user-id="${user.id}">${user.followers_count} Followers</div>
+        </div>
+        <button class="follow-button ${isFollowing ? 'unfollow' : ''}" 
+                data-user-id="${user.id}" 
+                data-following="${isFollowing}">
+          ${isFollowing ? 'Unfollow' : 'Follow'}
+        </button>
+      `;
+      list.appendChild(li);
+    });
+
+    setupFollowButtons();
+  }
+
+  function setupFollowButtons() {
+    document.querySelectorAll('.follow-button').forEach(button => {
+      button.addEventListener('click', async () => {
+        const userId = button.getAttribute('data-user-id');
+        const isFollowing = button.getAttribute('data-following') === 'true';
+
+        if (!isFollowing) {
+          // Follow
+          await supabase.from('followers').insert([{ user_id: currentUser.id, followed_user_id: userId }]);
+          await supabase.rpc('increment_followers_count', { uid: userId });
+        } else {
+          // Unfollow
+          await supabase.from('followers')
+            .delete()
+            .eq('user_id', currentUser.id)
+            .eq('followed_user_id', userId);
+          await supabase.rpc('decrement_followers_count', { uid: userId });
+        }
+
+        loadUsers(); // Refresh list
+      });
+    });
+  }
+
+  getSessionAndLoadUsers();
+</script>
+
+</body>
+</html>

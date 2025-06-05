@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Twinkl App Login</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    /* Your existing styles here */
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      background-color: #f8f9fa;
+    }
+    .container {
+      width: 320px;
+      padding: 20px;
+      background-color: #fff;
+      border-radius: 15px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      text-align: center;
+    }
+    .container img {
+      margin-bottom: 20px;
+    }
+    h1 {
+      font-size: 24px;
+      margin-bottom: 10px;
+      font-weight: bold;
+    }
+    form {
+      display: flex;
+      flex-direction: column;
+    }
+    input {
+      margin: 10px 0;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      font-size: 14px;
+    }
+    button {
+      margin: 10px 0;
+      padding: 10px;
+      font-size: 14px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      color: white;
+      background-color: #007bff;
+    }
+    button:hover {
+      background-color: #0056b3;
+    }
+    .error-message {
+      color: red;
+      font-size: 14px;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <img src="twinkle.png" alt="Twinkle App Logo" width="50">
+    <h1>Login to Twinkl App</h1>
+    <form id="login-form">
+      <input type="email" id="email" placeholder="Email address" required />
+      <input type="password" id="password" placeholder="Password" required />
+      <button type="submit">Log In</button>
+    </form>
+    <p>Don't have an account? <a href="signup.html">Sign up</a></p>
+    <p class="error-message" id="error-message"></p>
+  </div>
+<script>
+  const SUPABASE_URL = "https://umsgszmaubthunqwbnjn.supabase.co";
+  const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVtc2dzem1hdWJ0aHVucXdibmpuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDg3NTgzNTQsImV4cCI6MjA2NDMzNDM1NH0.nD44sDzSrbfkMQ8P4maXq3g4ironGihaU2p0aBomT5I";
+  const { createClient } = supabase;
+  const supabaseClient = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  async function handleLogin(event) {
+    event.preventDefault();
+
+    const email = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value;
+
+    const errorMessage = document.getElementById("error-message");
+    errorMessage.textContent = "";
+
+    if (!email || !password) {
+      alert("Please enter both email and password.");
+      return;
+    }
+
+    try {
+      const { data: authData, error: authError } = await supabaseClient.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (authError) {
+        console.error("Supabase Auth Error:", authError);
+        errorMessage.textContent = authError.message;
+        return;
+      }
+
+      console.log("Authentication successful:", authData);
+
+      const userId = authData.user?.id;
+
+      if (userId) {
+        const { data: userInfo, error: userError } = await supabaseClient
+          .from("users")
+          .select("*")
+          .eq("id", userId)
+          .single();
+
+        if (userError) {
+          console.error("Supabase User Profile Error:", userError);
+          alert("Error fetching user profile.");
+          return;
+        }
+
+        if (userInfo) {
+          localStorage.setItem("user", JSON.stringify(userInfo));
+          alert("Login successful! Redirecting...");
+          window.location.href = "homepage.html";
+        } else {
+          alert("User profile not found in the database.");
+        }
+      } else {
+        alert("User ID not found after authentication.");
+      }
+    } catch (err) {
+      console.error("Unexpected Login Error:", err);
+      alert("An unexpected error occurred during login.");
+    }
+  }
+
+  document.getElementById("login-form").addEventListener("submit", handleLogin);
+</script>
+
+
+</body>
+</html>

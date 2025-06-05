@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Sign Up - Twinkl App</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      background-color: #f8f9fa;
+      font-family: Arial, sans-serif;
+    }
+
+    .container {
+      width: 320px;
+      padding: 20px;
+      background-color: #fff;
+      border-radius: 15px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      text-align: center;
+    }
+
+    .container img {
+      margin-bottom: 20px;
+    }
+
+    h1 {
+      font-size: 24px;
+      margin-bottom: 10px;
+      font-weight: bold;
+    }
+
+    form {
+      display: flex;
+      flex-direction: column;
+    }
+
+    input {
+      margin: 10px 0;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      font-size: 14px;
+    }
+
+    button {
+      margin: 10px 0;
+      padding: 10px;
+      font-size: 14px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      color: white;
+      background-color: #007bff;
+    }
+
+    button:hover {
+      background-color: #0056b3;
+    }
+
+    .signup a {
+      text-decoration: none;
+      color: #007bff;
+      font-size: 14px;
+    }
+
+    .signup a:hover {
+      text-decoration: underline;
+    }
+
+    .error-message {
+      color: red;
+      font-size: 14px;
+      margin-top: 10px;
+    }
+
+    .success-message {
+      color: green;
+      font-size: 14px;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <img src="twinkle.png" alt="Twinkle App Logo" width="50">
+    <h1>Sign Up for Twinkl App</h1>
+    <form id="signup-form">
+      <input type="text" id="full_name" placeholder="Full name" required>
+      <input type="text" id="username" placeholder="Username" required>
+      <input type="email" id="email" placeholder="Email" required>
+      <input type="text" id="mobile_number" placeholder="Mobile Number" required>
+      <input type="password" id="password" placeholder="Password" required>
+      <button type="submit">Sign up</button>
+    </form>
+    <div class="signup">
+      <a href="login.html">Already have an account? Log in</a>
+    </div>
+    <p class="error-message" id="error-message"></p>
+    <p class="success-message" id="success-message"></p>
+  </div>
+
+<script>
+  const SUPABASE_URL = "https://umsgszmaubthunqwbnjn.supabase.co";
+  const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVtc2dzem1hdWJ0aHVucXdibmpuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDg3NTgzNTQsImV4cCI6MjA2NDMzNDM1NH0.nD44sDzSrbfkMQ8P4maXq3g4ironGihaU2p0aBomT5I";
+  const { createClient } = supabase;
+  const supabaseClient = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  async function handleSignUp(event) {
+    event.preventDefault();
+
+    const full_name = document.getElementById("full_name").value.trim();
+    const username = document.getElementById("username").value.trim();
+    const email = document.getElementById("email").value.trim();
+    const mobile_number = document.getElementById("mobile_number").value.trim();
+    const password = document.getElementById("password").value;
+
+    const errorMessage = document.getElementById("error-message");
+    const successMessage = document.getElementById("success-message");
+    errorMessage.textContent = "";
+    successMessage.textContent = "";
+
+    try {
+      const { data, error } = await supabaseClient.auth.signUp({
+        email: email,
+        password: password,
+        options: {
+          data: { full_name, username, mobile_number }
+        }
+      });
+
+      if (error) {
+        console.error("Sign-up error:", error.message);
+        errorMessage.textContent = error.message;
+        return;
+      }
+
+      const userId = data.user?.id;
+
+      if (!userId) {
+        successMessage.textContent = "Signup email sent. Please confirm your email.";
+        return;
+      }
+
+      const { error: insertError } = await supabaseClient.from("users").insert([
+        {
+          id: userId,
+          full_name,
+          username,
+          email,
+          mobile_number
+        }
+      ]);
+
+      if (insertError) {
+        console.error("Error inserting user profile:", insertError.message);
+        errorMessage.textContent = insertError.message;
+        return;
+      }
+
+      successMessage.textContent = "Registration successful! Redirecting to login...";
+      document.getElementById("signup-form").reset();
+
+      setTimeout(() => {
+        window.location.href = "login.html";
+      }, 2500);
+    } catch (err) {
+      console.error("Unexpected error:", err);
+      errorMessage.textContent = "Unexpected error. Please try again.";
+    }
+  }
+
+  document.getElementById("signup-form").addEventListener("submit", handleSignUp);
+</script>
+
+
+</body>
+</html>
